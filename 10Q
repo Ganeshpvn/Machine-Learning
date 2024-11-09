@@ -1,0 +1,77 @@
+import numpy as np
+from scipy.stats import norm
+
+class EMAlgorithm:
+    def __init__(self, num_clusters=2, num_iterations=100, tolerance=1e-6):
+        self.num_clusters = num_clusters
+        self.num_iterations = num_iterations
+        self.tolerance = tolerance
+
+    def initialize_parameters(self, X):
+        # Randomly initialize mean, variance, and mixing coefficients
+        np.random.seed(0)
+        self.means = np.random.choice(X.flatten(), self.num_clusters)
+        self.variances = np.random.random(self.num_clusters) + 1
+        self.weights = np.ones(self.num_clusters) / self.num_clusters
+    
+    def e_step(self, X):
+        # Expectation step: calculate responsibility
+        likelihoods = np.array([
+            self.weights[k] * norm.pdf(X, self.means[k], np.sqrt(self.variances[k]))
+            for k in range(self.num_clusters)
+        ])
+        responsibilities = likelihoods / likelihoods.sum(axis=0)
+        return responsibilities
+
+    def m_step(self, X, responsibilities):
+        # Maximization step: update parameters
+        N_k = responsibilities.sum(axis=1)
+        self.means = (responsibilities @ X) / N_k
+        self.variances = ((responsibilities * (X - self.means[:, np.newaxis])**2).sum(axis=1)) / N_k
+        self.weights = N_k / X.size
+
+    def fit(self, X):
+        # Flatten the data if needed
+        X = X.flatten()
+        
+        # Initialize parameters
+        self.initialize_parameters(X)
+        
+        for i in range(self.num_iterations):
+            # E-step
+            responsibilities = self.e_step(X)
+            
+            # M-step
+            prev_means = self.means.copy()
+            self.m_step(X, responsibilities)
+            
+            # Check for convergence
+            if np.linalg.norm(self.means - prev_means) < self.tolerance:
+                print(f"Converged after {i+1} iterations.")
+                break
+
+    def predict(self, X):
+        # Predict the cluster for each data point
+        responsibilities = self.e_step(X)
+        return np.argmax(responsibilities, axis=0)
+
+# Example usage
+if __name__ == "__main__":
+    # Generate sample data
+    np.random.seed(0)
+    X1 = np.random.normal(5, 1, 100)
+    X2 = np.random.normal(15, 2, 100)
+    X = np.concatenate([X1, X2])  # Combine the clusters
+
+    # Apply EM algorithm
+    em = EMAlgorithm(num_clusters=2, num_iterations=100)
+    em.fit(X)
+
+    # Print learned parameters
+    print("Means:", em.means)
+    print("Variances:", em.variances)
+    print("Weights:", em.weights)
+
+    # Predict clusters for the data points
+    predictions = em.predict(X)
+    print("Predicted clusters:", predictions)
